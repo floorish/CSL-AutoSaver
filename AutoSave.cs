@@ -2,9 +2,6 @@
 //------------------------------------
 // Don't lose your precious citizens!
 // This mod saves your city every 5 minutes (configurable)
-// 
-// In order to keep achievements, disable this mod (and all other mods) in the Content Manager panel
-// The AutoSave feature will continue to work
 //
 //
 // CONFIG FILE
@@ -27,8 +24,8 @@
 using System.IO;
 using System.Timers;
 using ICities;
-using UnityEngine;
 using ColossalFramework;
+using ColossalFramework.Packaging;
 
 namespace AutoSave {
 
@@ -36,76 +33,64 @@ namespace AutoSave {
 
 		public string Name {
 			get { 
-				// add the AutoSaver behaviour (mod does not need to be enabled)
-				// http://www.reddit.com/r/CitiesSkylinesModding/comments/2yvmlg/guide_how_to_make_your_mod_not_disable/
-				GameObject go = new GameObject("AutoSaver");
-				go.AddComponent<AutoSaverBehaviour>();
 				return "Auto Save";
 			}
 		}
 
 		public string Description {
-			get { return "Automatically save your city every couple of minutes. (Disable to keep achievements)"; }
+			get { return "Automatically save your city every couple of minutes."; }
 		}
 
 
 	}
 		
-	// Custom behaviour that 
-	public class AutoSaverBehaviour : MonoBehaviour {
+	// Official mod API autosaver
+	public class AutoSaver : SerializableDataExtensionBase {
 
-		static Timer t = new Timer();
+		private static Timer t = new Timer();
 
-		void OnLevelWasLoaded(int level) {
-		
+		// run when new game is loaded
+		public override void OnLoadData() {
 
-			// City loaded, start the timer
-			if (level == 6) {
+			int minutes = Config.GetInterval();
 
-				int minutes = Config.GetInterval();
-
-				if (minutes <= 0) {
-					return;
-				}
-
-				Log.Message ("AutoSave every " + minutes.ToString() + " minutes");
-
-				t.AutoReset = false;
-				t.Elapsed += new ElapsedEventHandler(SaveCity);
-				t.Interval = minutes * 60 * 1000; // minutes * 60 seconds * 1000 milliseconds
-				t.Start();
-
+			if (minutes <= 0) {
+				return;
 			}
 
-		}
+			Log.Message ("AutoSave every " + minutes.ToString() + " minutes");
 
-		// executed after each interval
-		void SaveCity(object sender, System.Timers.ElapsedEventArgs e){
-
-			// access to save panel
-			// http://www.reddit.com/r/CitiesSkylinesModding/comments/2ys5l8/le_source_code_for_custom_chirp/
-			if (!Singleton<SavePanel>.exists) {
-				Log.Message ("Savepanel does not exist");
-			}
-
-			SavePanel panel = Singleton<SavePanel>.instance;
-
-			panel.SaveGame ("_Autosave");
-
+			t.AutoReset = false;
+			t.Elapsed += new ElapsedEventHandler((sender, e) => SaveCity(sender, e, this.serializableDataManager));
+			t.Interval = minutes * 60 * 1000; // minutes * 60 seconds * 1000 milliseconds
 			t.Start();
 
 		}
-			
-		void Awake() {
-			DontDestroyOnLoad(this);
+
+		// executed after every interval
+		static void SaveCity(object sender, System.Timers.ElapsedEventArgs e, ISerializableData serializableData) {
+
+			string cityName = Singleton<SimulationManager>.instance.m_metaData.m_CityName;
+
+			if (cityName == null) {
+				cityName = " City";
+			} else {
+				cityName = " " + cityName;
+			}
+
+			serializableData.SaveGame("_Autosave" + cityName);
+
+			t.Start();
 		}
 	}
 
+
+	// read config file
 	public static class Config {
 
 		public static int GetInterval() {
 
-			string filename = "AutoSaveConf.txt";
+			const string filename = "AutoSaveConf.txt";
 			int minutes = 5; // default 5 minutes
 
 			// try to read config file
