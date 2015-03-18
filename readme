@@ -1,0 +1,27 @@
+Automatically save your cities every couple of minutes (configurable, 5 minutes default) 
+
+The AutoSaver uses a single autosave slot per city (Make sure your city name is different from other cities). Be aware that you should not rely on this mod as you primary save slot. You should always save your city when you close the game.
+
+----------- 
+
+[h1]Changing the save interval[/h1]
+
+After loading a city, this mod will make a configuration file in the steam directory, by default you can find that here: 
+
+[b]Windows[/b] - C:\Program Files (x86)\Steam\steamapps\common\Cities_Skylines\AutoSaveConf.txt 
+[b]Mac[/b] - /Users/<username>/Library/Application Support/Steam/steamapps/common/Cities_Skylines/AutoSaveConf.txt 
+[b]Linux[/b] - /home/<username>/.steam/steam/SteamApps/common/Cities_Skylines/AutoSaveConf.txt 
+
+You can modify this config to change the interval in minutes. (Default is every 5 minutes) 
+If AutoSaveConf.txt does not contain a valid number ( 1...maxInt ) AutoSave will be turned off. 
+The new config will apply after you reload a city. 
+
+----------- 
+
+[h1]Steam achievements[/h1]
+
+To enable Steam achievements, use the [url=http://steamcommunity.com/sharedfiles/filedetails/?id=407055819]Achievement Enabler mod[/url] 
+
+----------- 
+
+Make sure to disable any other autosave mod! 
