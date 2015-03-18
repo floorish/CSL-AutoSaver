@@ -49,6 +49,7 @@ namespace AutoSave {
 
 		private static Timer t = new Timer();
 
+
 		// run when new game is loaded
 		public override void OnLoadData() {
 
@@ -57,8 +58,6 @@ namespace AutoSave {
 			if (minutes <= 0) {
 				return;
 			}
-
-			Log.Message ("AutoSave every " + minutes.ToString() + " minutes");
 
 			t.AutoReset = false;
 			t.Elapsed += new ElapsedEventHandler((sender, e) => SaveCity(sender, e, this.serializableDataManager));
@@ -104,7 +103,6 @@ namespace AutoSave {
 					if (!parsed || minutes <= 0) {
 
 						// don't use illegal numbers
-						Log.Message ("Invalid config!");
 						return 0;
 
 					}
