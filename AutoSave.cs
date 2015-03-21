@@ -21,8 +21,11 @@
 // Attribution-NonCommercial-ShareAlike 4.0 International
 // http://creativecommons.org/licenses/by-nc-sa/4.0/
 
+using System;
 using System.IO;
 using System.Timers;
+using System.Collections.Generic;
+
 using ICities;
 using ColossalFramework;
 using ColossalFramework.Packaging;
@@ -38,53 +41,193 @@ namespace AutoSave {
 		}
 
 		public string Description {
-			get { return "Automatically save your city every couple of minutes."; }
+			get {
+				return "Automatically save your city every couple of minutes.";
+			}
 		}
-
-
+	
 	}
-		
-	// Official mod API autosaver
-	public class AutoSaver : SerializableDataExtensionBase {
 
-		private static Timer t = new Timer();
+	public class AutoSaver : SerializableDataExtensionBase
+	{
 
+		private static string suffix = "_autosave-";
+		private static int maxSaves = 3;
 
-		// run when new game is loaded
+		private bool m_saving = false;
+		private static Timer m_timer = null;
+		private Package.Asset m_lastSave = null;
+
+		/*
+		 * Start the autosaver
+		 */
 		public override void OnLoadData() {
-
 			int minutes = Config.GetInterval();
 
 			if (minutes <= 0) {
 				return;
 			}
 
-			t.AutoReset = false;
-			t.Elapsed += new ElapsedEventHandler((sender, e) => SaveCity(sender, e, this.serializableDataManager));
-			t.Interval = minutes * 60 * 1000; // minutes * 60 seconds * 1000 milliseconds
-			t.Start();
+			m_timer = new Timer ();
+			m_timer.AutoReset = false;
+			m_timer.Elapsed += new ElapsedEventHandler((sender, e) => SaveCity(managers.serializableData));
+			m_timer.Interval = minutes * 60 * 1000; // minutes * 60 secons * 1000 milliseconds
+			m_timer.Start();
+		}
+
+
+		/*
+		 * Called on close, makes sure latest autosave is visible
+		 */
+		public override void OnReleased() {
+
+			if (m_timer != null)
+			{
+				m_timer.Stop();
+				m_timer = null;
+			}
+
+			// make sure last save is enabled
+			getNewSaveName ();
+			if (m_lastSave != null) {
+				m_lastSave.isEnabled = true;
+				cleanLegacySave ();
+			}
 
 		}
 
-		// executed after every interval
-		static void SaveCity(object sender, System.Timers.ElapsedEventArgs e, ISerializableData serializableData) {
+
+		/*
+		 * Removes old autosave package "_Autosave CityName"
+		 */
+		private void cleanLegacySave() {
+
+			string cityName = Singleton<SimulationManager>.instance.m_metaData.m_CityName;
+
+			IEnumerable<Package.Asset> assets = PackageManager.FilterAssets (new Package.AssetType[] {
+				UserAssetType.SaveGameMetaData
+			});
+
+			Package p = null;
+
+			foreach (Package.Asset asset in assets) {
+
+				if (asset != null) {
+
+					if ( asset.package.packageName == "_Autosave " + cityName) {
+
+						p = asset.package;
+						break;
+					}
+
+				}
+			}
+
+			if (p != null) {
+				PackageManager.Remove (p);
+			}
+
+		}
+
+		/*
+		 * Creates a new save name
+		 * stays within maxSave slots
+		 */
+		private string getNewSaveName() {
 
 			string cityName = Singleton<SimulationManager>.instance.m_metaData.m_CityName;
 
 			if (cityName == null) {
-				cityName = " City";
-			} else {
-				cityName = " " + cityName;
+				cityName = "City";
 			}
 
-			serializableData.SaveGame("_Autosave" + cityName);
+			string saveName = cityName + suffix;
 
-			t.Start();
+			int saveNum = getLastSaveNum (saveName);
+
+			saveNum = saveNum % maxSaves + 1;
+
+			return saveName + saveNum;
+
 		}
+
+		/*
+		 * Search all savegames for autosave packages
+		 */
+		private int getLastSaveNum( string saveName ) {
+
+			int lastSaveNum = 0;
+			DateTime lastSaveDate = new DateTime (0);
+			Package.Asset lastSave = null;
+
+			IEnumerable<Package.Asset> assets = PackageManager.FilterAssets (new Package.AssetType[] {
+				UserAssetType.SaveGameMetaData
+			});
+
+			foreach (Package.Asset asset in assets) {
+
+				if (asset != null) {
+
+					string baseName = asset.package.packageName.Substring (0, asset.package.packageName.Length - 1);
+					string counterName = asset.package.packageName.Substring (asset.package.packageName.Length - 1);
+
+					int c = 0;
+					bool parsed = int.TryParse (counterName, out c);
+
+					// check if current city
+					if ( parsed && baseName == saveName ) {
+
+						// hide it
+						asset.isEnabled = false;
+
+						SaveGameMetaData saveGameMetaData = asset.Instantiate<SaveGameMetaData> ();
+
+						// check if later than latest found
+						if (saveGameMetaData.timeStamp.CompareTo (lastSaveDate) >= 0) {
+							lastSaveNum = c;
+							lastSaveDate = saveGameMetaData.timeStamp;
+							lastSave = asset;
+						}
+
+					}
+
+
+				}
+			}
+
+			m_lastSave = lastSave;
+
+			return lastSaveNum;
+
+		}
+
+		/*
+		 * Saves the city, executed after every interval
+		 */
+		public void SaveCity(ISerializableData serializableData) {
+
+			if (m_saving) {
+				Log.Message ("skipping, already saving");
+				return;
+			}
+
+			m_saving = true;
+
+			string saveName = getNewSaveName ();
+
+			serializableData.SaveGame(saveName);
+
+			m_timer.Start();
+			m_saving = false;
+		}
+
 	}
 
 
-	// read config file
+
+	/*
+	 * Read simple config file
+	 */
 	public static class Config {
 
 		public static int GetInterval() {
